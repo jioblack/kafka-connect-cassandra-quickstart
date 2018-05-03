@@ -1,0 +1,19 @@
+{
+    "name": "cassandra-sink-quickstart",
+    "config": {
+        "connector.class": "com.github.jcustenborder.kafka.connect.cassandra.CassandraSinkConnector",
+        "tasks.max": "1",
+        "topics": "cassandra-connector-quickstart",
+        "cassandra.keyspace": "kafka_connector_quickstart_keyspace",
+        "transforms": "insertKey, sanitizeTopic",
+        "transforms.insertKey.type": "org.apache.kafka.connect.transforms.ValueToKey",
+        "transforms.insertKey.fields": "key",
+        "transforms.insertKey.doc":
+            "The Cassandra connector requires messages to contain a key that will be used as the primary key for insertions. This key must also be present in the value of the message, so a ValueToKey SMT is ideal for converting messages to this format.",
+        "transforms.sanitizeTopic.type": "org.apache.kafka.connect.transforms.RegexRouter",
+        "transforms.sanitizeTopic.regex": "cassandra-connector-quickstart",
+        "transforms.sanitizeTopic.replacement": "kafka_connector_quickstart_table",
+        "transforms.sanitizeTopic.doc":
+            "The Cassandra connector derives the name of the table it inserts into directly from the name of the topic each message comes from. One way to write to a different table name is by using a RegexRouter SMT to change the name of the topic in the messages passed to the connector."
+    }
+}

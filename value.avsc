@@ -1,0 +1,32 @@
+{
+    "type": "record",
+    "name": "cassandra_connector_quickstart_value",
+    "fields": [
+        {
+            "name": "value",
+            "type": {
+                "type": "string",
+                "arg.properties": {
+                    "options": [
+                        "excellent",
+                        "good",
+                        "fair",
+                        "poor",
+                        "bad"
+                    ]
+                }
+            }
+        }, {
+            "name": "key",
+            "type": {
+                "type": "int",
+                "arg.properties": {
+                    "iteration": {
+                        "start": 1,
+                        "step": 17
+                    }
+                }
+            }
+        }
+    ]
+}
