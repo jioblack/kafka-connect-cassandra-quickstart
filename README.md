@@ -1,80 +1,32 @@
 0. (Only do this once) Build the Docker image
 ```bash
 $ docker build -t kafka-connect-cassandra .
+# This creates a new docker image based off of Confluent's cp-kafka-connect image
+# It then installs Cassandra, and downloads and extracts the Cassandra sink connector onto the plugin path for Kafka connect
 ```
 
-1. Start ZooKeeper
+1. Start ZooKeeper, Kafka, Schema Registry, and Kafka Connect:
 ```bash
-$ docker run -d \
-    --net=host \
-    --name=zookeeper \
-    -e ZOOKEEPER_CLIENT_PORT=32181 \
-    confluentinc/cp-zookeeper
+$ docker-compose up -d
 ```
 
-2. Start Kafka
+2. Start Cassandra
 ```bash
-$ docker run -d \
-    --net=host \
-    --name=kafka \
-    -e KAFKA_ZOOKEEPER_CONNECT=localhost:32181 \
-    -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:29092 \
-    -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
-    confluentinc/cp-kafka
+$ docker-compose exec -T kafka-connect-cassandra bash -c 'cassandra -R > /dev/null 2> /dev/null'
 ```
 
-3. Start Schema Registry
+2.5 Wait for Schema Registry to start:
 ```bash
-$ docker run -d \
-  --net=host \
-  --name=schema-registry \
-  --hostname=localhost \
-  -e SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL=localhost:32181 \
-  -e SCHEMA_REGISTRY_HOST_NAME=localhost \
-  -e SCHEMA_REGISTRY_LISTENERS=http://localhost:28081 \
-  confluentinc/cp-schema-registry
+$ docker-compose logs -f schema-registry | grep started
+# Look for a line like this:
+# schema-registry            | [2018-05-04 02:05:12,593] INFO Server started, listening for requests... (io.confluent.kafka.schemaregistry.rest.SchemaRegistryMain
+# ^C to stop viewing logs once you see it.
 ```
 
-4. Start Kafka Connect with default key/value converters of AvroConverter
-```bash
-$ docker run -d \
-  --name=kafka-connect-cassandra \
-  --net=host \
-  --hostname=localhost \
-  -e CONNECT_PRODUCER_INTERCEPTOR_CLASSES=io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor \
-  -e CONNECT_CONSUMER_INTERCEPTOR_CLASSES=io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor \
-  -e CONNECT_BOOTSTRAP_SERVERS=localhost:29092 \
-  -e CONNECT_REST_PORT=28082 \
-  -e CONNECT_GROUP_ID="quickstart" \
-  -e CONNECT_CONFIG_STORAGE_TOPIC="quickstart-config" \
-  -e CONNECT_OFFSET_STORAGE_TOPIC="quickstart-offsets" \
-  -e CONNECT_STATUS_STORAGE_TOPIC="quickstart-status" \
-  -e CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR=1 \
-  -e CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR=1 \
-  -e CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=1 \
-  -e CONNECT_KEY_CONVERTER="io.confluent.connect.avro.AvroConverter" \
-  -e CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL="http://localhost:28081" \
-  -e CONNECT_VALUE_CONVERTER="io.confluent.connect.avro.AvroConverter" \
-  -e CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL="http://localhost:28081" \
-  -e CONNECT_INTERNAL_KEY_CONVERTER="org.apache.kafka.connect.json.JsonConverter" \
-  -e CONNECT_INTERNAL_VALUE_CONVERTER="org.apache.kafka.connect.json.JsonConverter" \
-  -e CONNECT_REST_ADVERTISED_HOST_NAME="localhost" \
-  -e CONNECT_LOG4J_ROOT_LOGLEVEL=DEBUG \
-  -e CONNECT_LOG4J_LOGGERS=org.reflections=ERROR \
-  -e CONNECT_PLUGIN_PATH=/usr/share/java \
-  -e CONNECT_REST_HOST_NAME="localhost" \
-  kafka-connect-cassandra
-```
-
-5. Start Cassandra
-```bash
-$ docker exec kafka-connect-cassandra bash -c 'cassandra -R > /dev/null 2> /dev/null'
-```
-
-6. Create and populate a topic for the connector to consume from
+3. Create and populate a topic for the connector to consume from
 ```bash
 $ java -jar arg.jar -c -i 10 -f value.avsc |
-    docker exec -i kafka-connect-cassandra \
+    docker-compose exec -T kafka-connect-cassandra \
       kafka-avro-console-producer \
         --broker-list localhost:29092 \
         --topic cassandra-connector-quickstart \
@@ -82,27 +34,26 @@ $ java -jar arg.jar -c -i 10 -f value.avsc |
         --property value.schema="$(cat value.avsc)"
 ```
 
-6.5 Wait for connect to start
+3.5 Wait for connect to start
 ```bash
-$ docker logs -f kafka-connect-cassandra | grep started
-# Look for something like:
-# [2016-08-25 18:25:19,665] INFO Herder started (org.apache.kafka.connect.runtime.distributed.DistributedHerder)
-# [2016-08-25 18:25:19,676] INFO Kafka Connect started (org.apache.kafka.connect.runtime.Connect)
-# ^C to stop viewing logs once you see this.
+$ docker-compose logs -f kafka-connect-cassandra | grep 'Kafka Connect started'
+# Look for a line like this:
+# kafka-connect-cassandra    | [2016-08-25 18:25:19,676] INFO Kafka Connect started (org.apache.kafka.connect.runtime.Connect)
+# ^C to stop viewing logs once you see it.
 ```
 
-7. Start the Cassandra connector
+4. Start the Cassandra connector
 ```bash
-$ docker exec kafka-connect-cassandra curl \
+$ docker-compose exec kafka-connect-cassandra curl \
     -H 'Content-Type: application/json' \
     -H 'Accept: application/json' \
     -d "$(cat cassandra-sink.json)" \
     localhost:28082/connectors
 ```
 
-7.5. Verify that the Avro data made it into Kafka
+4.5. Verify that the Avro data made it into Kafka
 ```bash
-$ docker exec kafka-connect-cassandra kafka-avro-console-consumer \
+$ docker-compose exec kafka-connect-cassandra kafka-avro-console-consumer \
     --topic cassandra-connector-quickstart \
     --bootstrap-server localhost:29092 \
     --property schema.registry.url=http://localhost:28081 \
@@ -122,9 +73,9 @@ $ docker exec kafka-connect-cassandra kafka-avro-console-consumer \
 # Processed a total of 10 messages
 ```
 
-8. Verify that the Kafka data made it into Cassandra
+5. Verify that the Kafka data made it into Cassandra
 ```bash
-$ docker exec -it kafka-connect-cassandra cqlsh \
+$ docker-compose exec kafka-connect-cassandra cqlsh \
     --keyspace=kafka_connector_quickstart_keyspace \
     --execute='SELECT * FROM kafka_connector_quickstart_table;'
 # Should see something like:
@@ -146,5 +97,5 @@ $ docker exec -it kafka-connect-cassandra cqlsh \
 
 ?. If you need/want to poke around inside things, enter the Docker container for Kafka Connect
 ```bash
-$ docker exec -it kafka-connect-cassandra bash
+$ docker-compose exec kafka-connect-cassandra bash
 ```
