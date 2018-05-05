@@ -2,20 +2,16 @@
 ```bash
 $ docker build -t kafka-connect-cassandra .
 # This creates a new docker image based off of Confluent's cp-kafka-connect image
-# It then installs Cassandra, and downloads and extracts the Cassandra sink connector onto the plugin path for Kafka connect
+# It downloads and extracts the Cassandra sink connector onto the plugin path for Kafka connect
 ```
 
-1. Start ZooKeeper, Kafka, Schema Registry, and Kafka Connect:
+1. Start ZooKeeper, Kafka, Schema Registry, Kafka Connect, and Cassandra, each in their own Docker
+container:
 ```bash
 $ docker-compose up -d
 ```
 
-2. Start Cassandra
-```bash
-$ docker-compose exec -T kafka-connect-cassandra bash -c 'cassandra -R > /dev/null 2> /dev/null'
-```
-
-2.5 Wait for Schema Registry to start:
+1.5 Wait for Schema Registry to start:
 ```bash
 $ docker-compose logs -f schema-registry | grep started
 # Look for a line like this:
@@ -23,10 +19,10 @@ $ docker-compose logs -f schema-registry | grep started
 # ^C to stop viewing logs once you see it.
 ```
 
-3. Create and populate a topic for the connector to consume from
+2. Create and populate a topic for the connector to consume from
 ```bash
 $ java -jar arg.jar -c -i 10 -f value.avsc |
-    docker-compose exec -T kafka-connect-cassandra \
+    docker-compose exec -T kafka-connect \
       kafka-avro-console-producer \
         --broker-list localhost:29092 \
         --topic cassandra-connector-quickstart \
@@ -34,26 +30,26 @@ $ java -jar arg.jar -c -i 10 -f value.avsc |
         --property value.schema="$(cat value.avsc)"
 ```
 
-3.5 Wait for connect to start
+2.5 Wait for connect to start
 ```bash
-$ docker-compose logs -f kafka-connect-cassandra | grep 'Kafka Connect started'
+$ docker-compose logs -f kafka-connect| grep 'Kafka Connect started'
 # Look for a line like this:
 # kafka-connect-cassandra    | [2016-08-25 18:25:19,676] INFO Kafka Connect started (org.apache.kafka.connect.runtime.Connect)
 # ^C to stop viewing logs once you see it.
 ```
 
-4. Start the Cassandra connector
+3. Start the Cassandra connector
 ```bash
-$ docker-compose exec kafka-connect-cassandra curl \
+$ docker-compose exec kafka-connect curl \
     -H 'Content-Type: application/json' \
     -H 'Accept: application/json' \
     -d "$(cat cassandra-sink.json)" \
     localhost:28082/connectors
 ```
 
-4.5. Verify that the Avro data made it into Kafka
+3.5. Verify that the Avro data made it into Kafka
 ```bash
-$ docker-compose exec kafka-connect-cassandra kafka-avro-console-consumer \
+$ docker-compose exec kafka-connect kafka-avro-console-consumer \
     --topic cassandra-connector-quickstart \
     --bootstrap-server localhost:29092 \
     --property schema.registry.url=http://localhost:28081 \
@@ -73,9 +69,9 @@ $ docker-compose exec kafka-connect-cassandra kafka-avro-console-consumer \
 # Processed a total of 10 messages
 ```
 
-5. Verify that the Kafka data made it into Cassandra
+4. Verify that the Kafka data made it into Cassandra
 ```bash
-$ docker-compose exec kafka-connect-cassandra cqlsh \
+$ docker-compose exec cassandra cqlsh \
     --keyspace=kafka_connector_quickstart_keyspace \
     --execute='SELECT * FROM kafka_connector_quickstart_table;'
 # Should see something like:
@@ -95,7 +91,11 @@ $ docker-compose exec kafka-connect-cassandra cqlsh \
 # (10 rows)
 ```
 
-?. If you need/want to poke around inside things, enter the Docker container for Kafka Connect
+?. If you need/want to poke around inside things, enter the Docker container for Kafka Connect:
 ```bash
-$ docker-compose exec kafka-connect-cassandra bash
+$ docker-compose exec kafka-connect bash
+```
+or for Cassandra:
+```bash
+$ docker-compose exec cassandra bash
 ```
