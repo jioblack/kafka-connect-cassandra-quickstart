@@ -57,7 +57,6 @@ services:
       CONNECT_LOG4J_LOGGERS: org.reflections=ERROR
       CONNECT_PLUGIN_PATH: /usr/share/java
       CONNECT_REST_HOST_NAME: localhost
-      CONFLUENT_HUB_COMPONENTS: "jcustenborder/kafka-connect-cassandra/0.1.9"
   cassandra:
     image: library/cassandra:3.0
     network_mode: host
