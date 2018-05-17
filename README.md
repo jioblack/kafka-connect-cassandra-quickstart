@@ -32,7 +32,7 @@ $ java -jar arg.jar -c -i 10 -f value.avsc |
 
 2.5 Wait for connect to start
 ```bash
-$ docker-compose logs -f kafka-connect| grep 'Kafka Connect started'
+$ docker-compose logs -f kafka-connect | grep 'Kafka Connect started'
 # Look for a line like this:
 # kafka-connect-cassandra    | [2016-08-25 18:25:19,676] INFO Kafka Connect started (org.apache.kafka.connect.runtime.Connect)
 # ^C to stop viewing logs once you see it.
